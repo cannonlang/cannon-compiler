@@ -1,5 +1,5 @@
 use core::fmt;
-use core::{iter::Peekable, ops::Deref, fmt::Debug};
+use core::{fmt::Debug, iter::Peekable, ops::Deref};
 
 use unicode_xid::UnicodeXID;
 
@@ -11,10 +11,10 @@ use crate::{
 #[derive(Debug)]
 pub enum TokenType {
     Comment,
-    Eof,
     Id,
     Num,
     Punct,
+    String,
 }
 
 pub struct Token {
@@ -23,13 +23,6 @@ pub struct Token {
 }
 
 impl Token {
-    fn eof(end: Option<char>) -> Self {
-        Token {
-            ty: TokenType::Eof,
-            body: end.map_or_else(|| "".into(), |x| x.into()),
-        }
-    }
-
     fn comment(comment: String) -> Self {
         Token {
             ty: TokenType::Comment,
@@ -55,6 +48,13 @@ impl Token {
         Token {
             ty: TokenType::Punct,
             body: punct,
+        }
+    }
+
+    fn string(string: String) -> Self {
+        Token {
+            ty: TokenType::String,
+            body: string,
         }
     }
 }
@@ -103,10 +103,19 @@ impl GroupType {
     }
 }
 
-#[derive(Debug)]
 pub struct Group {
     pub ty: GroupType,
     pub body: Vec<Lexeme>,
+}
+
+impl Debug for Group {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Group(")?;
+        self.ty.fmt(f)?;
+        f.write_str(", ")?;
+        self.body.fmt(f)?;
+        f.write_str(")")
+    }
 }
 
 pub enum LexemeBody {
@@ -172,7 +181,6 @@ pub fn lex_group(
     loop {
         match file.next() {
             x if x == end_char => {
-                result.push(Lexeme::new(*pos, Token::eof(x)));
                 if x.is_some() {
                     pos.1 += 1;
                 }
@@ -208,7 +216,7 @@ pub fn lex_group(
                 }
                 result.push(Lexeme::new((start, *pos), Token::num(num)));
             }
-            Some(c @ ('#' | ';')) => {
+            Some(c @ ('#' | ';' | '=')) => {
                 let start = *pos;
                 pos.1 += 1;
                 result.push(Lexeme::new((start, *pos), Token::punct(c.into())));
@@ -269,11 +277,31 @@ pub fn lex_group(
                     result.push(Lexeme::new(start, Token::punct(":".into())));
                 }
             }
+            Some('"') => {
+                let start = *pos;
+                pos.1 += 1;
+                let mut text = String::new();
+                loop {
+                    let Some(c) = file.next() else { Err(CannonError::Eof(*pos))? };
+                    if c == '\n' {
+                        Err(CannonError::UnexpectedChar(c, *pos))?
+                    } else if c == '\\' {
+                        todo!();
+                    } else if c == '"' {
+                        break;
+                    } else {
+                        pos.1 += 1;
+                        text.push(c);
+                    }
+                }
+                pos.1 += 1;
+                result.push(Lexeme::new((start, *pos), Token::string(text)));
+            }
             Some(x) if let Some(ty) = GroupType::from_start_char(x) => {
                 let start = *pos;
                 pos.1 += 1;
                 let inner = lex_group(file, pos, Some(ty.end_char()))?;
-                result.push(Lexeme::new(Span { start, end: *pos }, ty.build(inner)));
+                result.push(Lexeme::new((start, *pos), ty.build(inner)));
             }
             Some(x) => Err(CannonError::UnexpectedChar(x, *pos))?,
         }

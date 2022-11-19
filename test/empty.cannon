@@ -1,3 +1,5 @@
+// {cannonc-test: xpass noout}
+
 fn main() -> i32 {
     0
 }

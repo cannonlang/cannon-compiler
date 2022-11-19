@@ -24,24 +24,6 @@ impl From<Pos> for Span {
     }
 }
 
-impl From<&Pos> for Span {
-    fn from(pos: &Pos) -> Self {
-        Self {
-            start: *pos,
-            end: Pos(pos.0, pos.1 + 1),
-        }
-    }
-}
-
-impl From<&mut Pos> for Span {
-    fn from(pos: &mut Pos) -> Self {
-        Self {
-            start: *pos,
-            end: Pos(pos.0, pos.1 + 1),
-        }
-    }
-}
-
 impl From<(Pos, Pos)> for Span {
     fn from(span: (Pos, Pos)) -> Self {
         Self {

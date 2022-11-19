@@ -1,1 +1,5 @@
-pub type int = i32;
+#[cfg(platform = "dos")] // Proposed syntax
+pub type int = i32; // Proposed syntax
+
+#[cfg(not(platform = "dos"))] // Proposed syntax
+pub type int = i16;
