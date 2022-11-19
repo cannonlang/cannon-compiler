@@ -1,4 +1,5 @@
-use std::{iter::Peekable, ops::Deref};
+use core::fmt;
+use core::{iter::Peekable, ops::Deref, fmt::Debug};
 
 use unicode_xid::UnicodeXID;
 
@@ -16,7 +17,6 @@ pub enum TokenType {
     Punct,
 }
 
-#[derive(Debug)]
 pub struct Token {
     pub ty: TokenType,
     pub body: String,
@@ -59,6 +59,20 @@ impl Token {
     }
 }
 
+impl Debug for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Token({:?}, {:?})", self.ty, self.body)
+    }
+}
+
+impl Deref for Token {
+    type Target = String;
+
+    fn deref(&self) -> &String {
+        &self.body
+    }
+}
+
 #[derive(Debug)]
 pub enum GroupType {
     Paren,   // ()
@@ -95,18 +109,18 @@ pub struct Group {
     pub body: Vec<Lexeme>,
 }
 
-impl Deref for Token {
-    type Target = String;
-
-    fn deref(&self) -> &String {
-        &self.body
-    }
-}
-
-#[derive(Debug)]
 pub enum LexemeBody {
     Token(Token),
     Group(Group),
+}
+
+impl Debug for LexemeBody {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Token(t) => t.fmt(f),
+            Self::Group(g) => g.fmt(f),
+        }
+    }
 }
 
 impl From<Token> for LexemeBody {
@@ -121,10 +135,15 @@ impl From<Group> for LexemeBody {
     }
 }
 
-#[derive(Debug)]
 pub struct Lexeme {
     pub span: Span,
     pub body: LexemeBody,
+}
+
+impl Debug for Lexeme {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.body.fmt(f)
+    }
 }
 
 impl Lexeme {
