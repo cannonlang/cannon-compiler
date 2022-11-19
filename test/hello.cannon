@@ -1,0 +1,7 @@
+#[call(C)]
+fn puts(_: *const u8) -> ffi::c::int;
+
+fn main() -> i32 {
+    puts(b"Hello, world!\0"); // Proposed syntax
+    0
+}

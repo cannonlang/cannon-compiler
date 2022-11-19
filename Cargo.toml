@@ -1,0 +1,13 @@
+[package]
+name = "cannon-compiler"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ray Redondo <rdredondo@lcdev.xyz>"]
+
+[dependencies]
+arch-ops = { git = "https://github.com/LightningCreations/lc-binutils", features = ["all"] }
+binfmt = { git = "https://github.com/LightningCreations/lc-binutils", features = ["all-archs", "all-formats"] }
+clap = { version = "4", features = ["derive"] }
+target-tuples = "0.5"
+thiserror = "1"
+unicode-xid = "0.2"
