@@ -2,14 +2,13 @@
 #![warn(clippy::nursery, clippy::pedantic)]
 #![feature(if_let_guard)]
 
-pub mod error;
 pub mod lex;
 pub mod span;
 
-use std::{path::PathBuf, process, sync::RwLock};
+use std::{path::{PathBuf, Path}, process, sync::RwLock, io};
 
 use clap::{error::ErrorKind, CommandFactory, Parser};
-use error::CannonError;
+use span::Pos;
 
 /// Official compiler for the Cannon programming language
 #[derive(Parser)]
@@ -39,21 +38,21 @@ fn main() {
         let file_text = file_text.clone();
         let file_lines: Vec<_> = file_text.lines().collect();
         match e {
-            CannonError::Eof(pos) => {
+            Error::Eof(pos) => {
                 println!("{}", file_lines[pos.0 - 1]);
-                println!("{}^ unexpected EOF", " ".repeat(pos.1 - 1))
+                println!("{}^ unexpected EOF", " ".repeat(pos.1 - 1));
             }
-            CannonError::UnexpectedChar(c, pos) => {
+            Error::UnexpectedChar(c, pos) => {
                 println!("{}", file_lines[pos.0 - 1]);
-                println!("{}^ unexpected {:?}", " ".repeat(pos.1 - 1), c)
+                println!("{}^ unexpected {c:?}", " ".repeat(pos.1 - 1));
             }
-            _ => eprintln!("{}", e),
+            Error::ReadError(_) => eprintln!("{e}"),
         }
         process::exit(1);
     }
 }
 
-fn run_frontend() -> Result<(), CannonError> {
+fn run_frontend() -> Result<(), Error> {
     let options = Options::parse();
     if options.output.is_some() && options.files.len() > 1 && options.compile_only {
         Options::command()
@@ -66,10 +65,10 @@ fn run_frontend() -> Result<(), CannonError> {
     if options.compile_only {
         for file in &options.files {
             let output = options.output.clone().unwrap_or_else(|| {
-                file.strip_suffix(".cannon").unwrap_or(&file).to_string() + ".o"
+                file.strip_suffix(".cannon").unwrap_or(file).to_string() + ".o"
             });
             let file = PathBuf::from(file);
-            let output = output.into();
+            let output = PathBuf::from(output);
             if !file.exists() {
                 Options::command()
                     .error(
@@ -78,16 +77,16 @@ fn run_frontend() -> Result<(), CannonError> {
                     )
                     .exit();
             }
-            compile(file, output)?;
+            compile(&file, &output)?;
         }
     }
     if options.highlight_only {
         for file in &options.files {
             let output = options.output.clone().unwrap_or_else(|| {
-                file.strip_suffix(".cannon").unwrap_or(&file).to_string() + ".o"
+                file.strip_suffix(".cannon").unwrap_or(file).to_string() + ".o"
             });
             let file = PathBuf::from(file);
-            let output = output.into();
+            let output = PathBuf::from(output);
             if !file.exists() {
                 Options::command()
                     .error(
@@ -96,24 +95,34 @@ fn run_frontend() -> Result<(), CannonError> {
                     )
                     .exit();
             }
-            highlight(file, output)?;
+            highlight(&file, &output)?;
         }
     }
     Ok(())
 }
 
-fn compile(file: PathBuf, _output: PathBuf) -> Result<(), CannonError> {
+fn compile(file: &Path, _output: &Path) -> Result<(), Error> {
     let file_str = std::fs::read_to_string(file)?;
     *CURRENT_FILE.write().unwrap() = file_str.clone();
     let lexed = lex::lex(file_str.chars())?;
-    println!("{:#?}", lexed);
+    println!("{lexed:#?}");
     Ok(())
 }
 
-fn highlight(file: PathBuf, _output: PathBuf) -> Result<(), CannonError> {
+fn highlight(file: &Path, _output: &Path) -> Result<(), Error> {
     let file_str = std::fs::read_to_string(file)?;
     *CURRENT_FILE.write().unwrap() = file_str.clone();
     let lexed = lex::lex(file_str.chars())?;
     println!("{}", lex::highlight(&lexed));
     Ok(())
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("unexpected EOF at {0}")]
+    Eof(Pos),
+    #[error("error reading input file: {0}")]
+    ReadError(#[from] io::Error),
+    #[error("unexpected {0:?} at {1}")]
+    UnexpectedChar(char, Pos),
 }

@@ -3,8 +3,8 @@ use core::{fmt::Debug, iter::Peekable, ops::Deref};
 
 use unicode_xid::UnicodeXID;
 
+use crate::Error;
 use crate::{
-    error::CannonError,
     span::{Pos, Span},
 };
 
@@ -23,36 +23,36 @@ pub struct Token {
 }
 
 impl Token {
-    fn comment(comment: String) -> Self {
-        Token {
+    const fn comment(comment: String) -> Self {
+        Self {
             ty: TokenType::Comment,
             body: comment,
         }
     }
 
-    fn id(id: String) -> Self {
-        Token {
+    const fn id(id: String) -> Self {
+        Self {
             ty: TokenType::Id,
             body: id,
         }
     }
 
-    fn num(num: String) -> Self {
-        Token {
+    const fn num(num: String) -> Self {
+        Self {
             ty: TokenType::Num,
             body: num,
         }
     }
 
-    fn punct(punct: String) -> Self {
-        Token {
+    const fn punct(punct: String) -> Self {
+        Self {
             ty: TokenType::Punct,
             body: punct,
         }
     }
 
-    fn string(string: String) -> Self {
-        Token {
+    const fn string(string: String) -> Self {
+        Self {
             ty: TokenType::String,
             body: string,
         }
@@ -60,7 +60,7 @@ impl Token {
 
     #[must_use]
     pub fn is_keyword(&self) -> bool {
-        self.ty == TokenType::Id && matches!(self.body.deref(), "fn" | "pub" | "type")
+        self.ty == TokenType::Id && matches!(&*self.body, "fn" | "pub" | "type")
     }
 }
 
@@ -86,7 +86,7 @@ pub enum GroupType {
 }
 
 impl GroupType {
-    fn end_char(&self) -> char {
+    const fn end_char(&self) -> char {
         match self {
             Self::Paren => ')',
             Self::Bracket => ']',
@@ -94,7 +94,7 @@ impl GroupType {
         }
     }
 
-    fn from_start_char(c: char) -> Option<Self> {
+    const fn from_start_char(c: char) -> Option<Self> {
         match c {
             '(' => Some(Self::Paren),
             '[' => Some(Self::Bracket),
@@ -103,7 +103,7 @@ impl GroupType {
         }
     }
 
-    fn build(self, body: Vec<Lexeme>) -> Group {
+    const fn build(self, body: Vec<Lexeme>) -> Group {
         Group { ty: self, body }
     }
 }
@@ -177,11 +177,14 @@ impl Deref for Lexeme {
     }
 }
 
-pub fn lex_group(
+#[allow(clippy::missing_errors_doc)]
+#[allow(clippy::missing_panics_doc)]
+#[allow(clippy::too_many_lines)]
+pub fn do_group(
     file: &mut Peekable<impl Iterator<Item = char>>,
     pos: &mut Pos,
     end_char: Option<char>,
-) -> Result<Vec<Lexeme>, CannonError> {
+) -> Result<Vec<Lexeme>, Error> {
     let mut result = Vec::new();
     loop {
         match file.next() {
@@ -191,7 +194,7 @@ pub fn lex_group(
                 }
                 break;
             },
-            None => Err(CannonError::Eof(*pos))?,
+            None => Err(Error::Eof(*pos))?,
             Some(' ') => pos.1 += 1,
             Some('\n') => {
                 pos.0 += 1;
@@ -229,7 +232,7 @@ pub fn lex_group(
             Some(':') => {
                 let start = *pos;
                 pos.1 += 1;
-                let punct = if let Some(':') = file.peek() {
+                let punct = if file.peek() == Some(&':') {
                     file.next();
                     pos.1 += 1;
                     "::".into()
@@ -263,7 +266,7 @@ pub fn lex_group(
             Some('/') => {
                 let start = *pos;
                 pos.1 += 1;
-                if let Some('/') = file.peek() {
+                if file.peek() == Some(&'/') {
                     let mut text = String::from("//");
                     file.next();
                     pos.1 += 1;
@@ -276,10 +279,10 @@ pub fn lex_group(
                         pos.1 += 1;
                     }
                     result.push(Lexeme::new((start, *pos), Token::comment(text)));
-                } else if let Some('*') = file.peek() {
-                    todo!("Multiline?")
+                } else if file.peek() == Some(&'*') {
+                    todo!("Multiline?");
                 } else {
-                    result.push(Lexeme::new(start, Token::punct(":".into())));
+                    result.push(Lexeme::new(start, Token::punct("/".into())));
                 }
             }
             Some('"') => {
@@ -287,9 +290,9 @@ pub fn lex_group(
                 pos.1 += 1;
                 let mut text = String::new();
                 loop {
-                    let Some(c) = file.next() else { Err(CannonError::Eof(*pos))? };
+                    let Some(c) = file.next() else { Err(Error::Eof(*pos))? };
                     if c == '\n' {
-                        Err(CannonError::UnexpectedChar(c, *pos))?
+                        Err(Error::UnexpectedChar(c, *pos))?;
                     } else if c == '\\' {
                         todo!();
                     } else if c == '"' {
@@ -305,17 +308,18 @@ pub fn lex_group(
             Some(x) if let Some(ty) = GroupType::from_start_char(x) => {
                 let start = *pos;
                 pos.1 += 1;
-                let inner = lex_group(file, pos, Some(ty.end_char()))?;
+                let inner = do_group(file, pos, Some(ty.end_char()))?;
                 result.push(Lexeme::new((start, *pos), ty.build(inner)));
             }
-            Some(x) => Err(CannonError::UnexpectedChar(x, *pos))?,
+            Some(x) => Err(Error::UnexpectedChar(x, *pos))?,
         }
     }
     Ok(result)
 }
 
-pub fn lex(file: impl Iterator<Item = char>) -> Result<Vec<Lexeme>, CannonError> {
-    lex_group(&mut file.peekable(), &mut Pos(1, 1), None)
+#[allow(clippy::missing_errors_doc)]
+pub fn lex(file: impl Iterator<Item = char>) -> Result<Vec<Lexeme>, Error> {
+    do_group(&mut file.peekable(), &mut Pos(1, 1), None)
 }
 
 #[must_use]
@@ -339,10 +343,12 @@ fn highlight_group(pos: &mut Pos, group: &[Lexeme]) -> String {
             LexemeBody::Token(token) => {
                 match token.ty {
                     TokenType::Comment => result += "\x1B[34m",
-                    TokenType::Id => if token.is_keyword() {
-                        result += "\x1B[31m";
-                    } else {
-                        result += "\x1B[37m";
+                    TokenType::Id => {
+                        if token.is_keyword() {
+                            result += "\x1B[31m";
+                        } else {
+                            result += "\x1B[37m";
+                        }
                     }
                     TokenType::Num => result += "\x1B[36m",
                     TokenType::Punct => result += "\x1B[33m",
