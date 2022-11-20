@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Pos(pub usize, pub usize); // row, col
 
 impl Display for Pos {

@@ -1,1 +1,3 @@
+// {cannonc-test: xfail}
+
 fn main() -> i32 { 0 // Oh no I forgor a brace

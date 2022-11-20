@@ -10,7 +10,6 @@ use std::{path::PathBuf, process, sync::RwLock};
 
 use clap::{error::ErrorKind, CommandFactory, Parser};
 use error::CannonError;
-use target_tuples::Target;
 
 /// Official compiler for the Cannon programming language
 #[derive(Parser)]
@@ -27,9 +26,9 @@ struct Options {
     #[arg(short)]
     compile_only: bool,
 
-    /// Target to compile to
+    /// Highlight only, don't compile
     #[arg(long)]
-    target: String,
+    highlight_only: bool,
 }
 
 static CURRENT_FILE: RwLock<String> = RwLock::new(String::new());
@@ -64,9 +63,8 @@ fn run_frontend() -> Result<(), CannonError> {
             )
             .exit();
     }
-    let _target = Target::parse(&options.target);
     if options.compile_only {
-        for file in options.files {
+        for file in &options.files {
             let output = options.output.clone().unwrap_or_else(|| {
                 file.strip_suffix(".cannon").unwrap_or(&file).to_string() + ".o"
             });
@@ -83,6 +81,24 @@ fn run_frontend() -> Result<(), CannonError> {
             compile(file, output)?;
         }
     }
+    if options.highlight_only {
+        for file in &options.files {
+            let output = options.output.clone().unwrap_or_else(|| {
+                file.strip_suffix(".cannon").unwrap_or(&file).to_string() + ".o"
+            });
+            let file = PathBuf::from(file);
+            let output = output.into();
+            if !file.exists() {
+                Options::command()
+                    .error(
+                        ErrorKind::Io,
+                        &format!("file `{}` not found", file.display()),
+                    )
+                    .exit();
+            }
+            highlight(file, output)?;
+        }
+    }
     Ok(())
 }
 
@@ -91,5 +107,13 @@ fn compile(file: PathBuf, _output: PathBuf) -> Result<(), CannonError> {
     *CURRENT_FILE.write().unwrap() = file_str.clone();
     let lexed = lex::lex(file_str.chars())?;
     println!("{:#?}", lexed);
+    Ok(())
+}
+
+fn highlight(file: PathBuf, _output: PathBuf) -> Result<(), CannonError> {
+    let file_str = std::fs::read_to_string(file)?;
+    *CURRENT_FILE.write().unwrap() = file_str.clone();
+    let lexed = lex::lex(file_str.chars())?;
+    println!("{}", lex::highlight(&lexed));
     Ok(())
 }

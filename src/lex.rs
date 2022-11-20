@@ -8,7 +8,7 @@ use crate::{
     span::{Pos, Span},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum TokenType {
     Comment,
     Id,
@@ -56,6 +56,11 @@ impl Token {
             ty: TokenType::String,
             body: string,
         }
+    }
+
+    #[must_use]
+    pub fn is_keyword(&self) -> bool {
+        self.ty == TokenType::Id && matches!(self.body.deref(), "fn" | "pub" | "type")
     }
 }
 
@@ -311,4 +316,85 @@ pub fn lex_group(
 
 pub fn lex(file: impl Iterator<Item = char>) -> Result<Vec<Lexeme>, CannonError> {
     lex_group(&mut file.peekable(), &mut Pos(1, 1), None)
+}
+
+#[must_use]
+fn highlight_group(pos: &mut Pos, group: &[Lexeme]) -> String {
+    let mut result = String::new();
+    for lexeme in group {
+        let start = lexeme.span.start;
+        while *pos != start {
+            if pos.0 < start.0 {
+                pos.1 = 1;
+                pos.0 += 1;
+                result += "\n";
+            } else if pos.1 < start.1 {
+                pos.1 += 1;
+                result += " ";
+            } else {
+                panic!("invalid span");
+            }
+        }
+        match &lexeme.body {
+            LexemeBody::Token(token) => {
+                match token.ty {
+                    TokenType::Comment => result += "\x1B[34m",
+                    TokenType::Id => if token.is_keyword() {
+                        result += "\x1B[31m";
+                    } else {
+                        result += "\x1B[37m";
+                    }
+                    TokenType::Num => result += "\x1B[36m",
+                    TokenType::Punct => result += "\x1B[33m",
+                    TokenType::String => result += "\x1B[32m",
+                }
+                if token.ty == TokenType::String {
+                    result.push('"');
+                    result += &token.body;
+                    result.push('"');
+                    pos.1 += token.body.len() + 2;
+                } else {
+                    result += &token.body;
+                    pos.1 += token.body.len();
+                }
+            }
+            LexemeBody::Group(group) => {
+                result += "\x1B[35m";
+                match group.ty {
+                    GroupType::Brace => result += "{",
+                    GroupType::Bracket => result += "[",
+                    GroupType::Paren => result += "(",
+                }
+                pos.1 += 1;
+                result += &highlight_group(pos, &group.body);
+                let mut end = lexeme.span.end;
+                end.1 -= 1; // One column backward, since the span is inclusive
+                while *pos != end {
+                    if pos.0 < end.0 {
+                        pos.1 = 1;
+                        pos.0 += 1;
+                        result += "\n";
+                    } else if pos.1 < end.1 {
+                        pos.1 += 1;
+                        result += " ";
+                    } else {
+                        panic!("invalid span");
+                    }
+                }
+                result += "\x1B[35m";
+                match group.ty {
+                    GroupType::Brace => result += "}",
+                    GroupType::Bracket => result += "]",
+                    GroupType::Paren => result += ")",
+                }
+                pos.1 += 1;
+            }
+        }
+    }
+    result
+}
+
+#[must_use]
+pub fn highlight(file: &[Lexeme]) -> String {
+    highlight_group(&mut Pos(1, 1), file) + "\x1B[0m"
 }
