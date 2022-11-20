@@ -1,11 +1,18 @@
-#![deny(clippy::all)]
-#![warn(clippy::nursery, clippy::pedantic)]
+#![deny(clippy::all, clippy::alloc_instead_of_core)]
+#![warn(clippy::nursery, clippy::pedantic, clippy::std_instead_of_core)] // TODO: move std_instead_of_core to deny
 #![feature(if_let_guard)]
 
+pub mod ast;
 pub mod lex;
+pub mod parse;
 pub mod span;
 
-use std::{path::{PathBuf, Path}, process, sync::RwLock, io};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    process,
+    sync::RwLock,
+};
 
 use clap::{error::ErrorKind, CommandFactory, Parser};
 use span::Pos;
@@ -64,9 +71,10 @@ fn run_frontend() -> Result<(), Error> {
     }
     if options.compile_only {
         for file in &options.files {
-            let output = options.output.clone().unwrap_or_else(|| {
-                file.strip_suffix(".cannon").unwrap_or(file).to_string() + ".o"
-            });
+            let output = options
+                .output
+                .clone()
+                .unwrap_or_else(|| file.strip_suffix(".cannon").unwrap_or(file).to_string() + ".o");
             let file = PathBuf::from(file);
             let output = PathBuf::from(output);
             if !file.exists() {
@@ -82,9 +90,10 @@ fn run_frontend() -> Result<(), Error> {
     }
     if options.highlight_only {
         for file in &options.files {
-            let output = options.output.clone().unwrap_or_else(|| {
-                file.strip_suffix(".cannon").unwrap_or(file).to_string() + ".o"
-            });
+            let output = options
+                .output
+                .clone()
+                .unwrap_or_else(|| file.strip_suffix(".cannon").unwrap_or(file).to_string() + ".o");
             let file = PathBuf::from(file);
             let output = PathBuf::from(output);
             if !file.exists() {
@@ -117,6 +126,7 @@ fn highlight(file: &Path, _output: &Path) -> Result<(), Error> {
     Ok(())
 }
 
+// #[allow(clippy::std_instead_of_core)] // TODO: wait for thiserror to support no_std
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("unexpected EOF at {0}")]

@@ -1,10 +1,10 @@
-use std::fmt::{self, Display};
+use core::fmt::{self, Display};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Pos(pub usize, pub usize); // row, col
 
 impl Display for Pos {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.0, self.1)
     }
 }

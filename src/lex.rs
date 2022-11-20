@@ -3,10 +3,8 @@ use core::{fmt::Debug, iter::Peekable, ops::Deref};
 
 use unicode_xid::UnicodeXID;
 
+use crate::span::{Pos, Span};
 use crate::Error;
-use crate::{
-    span::{Pos, Span},
-};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum TokenType {
