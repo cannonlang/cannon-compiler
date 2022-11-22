@@ -58,7 +58,11 @@ impl Token {
 
     #[must_use]
     pub fn is_keyword(&self) -> bool {
-        self.ty == TokenType::Id && matches!(&*self.body, "fn" | "pub" | "type")
+        self.ty == TokenType::Id
+            && matches!(
+                &*self.body,
+                "as" | "const" | "fn" | "if" | "mut" | "pub" | "return" | "type" | "while"
+            )
     }
 }
 
@@ -222,7 +226,7 @@ pub fn do_group(
                 }
                 result.push(Lexeme::new((start, *pos), Token::num(num)));
             }
-            Some(c @ ('#' | ';' | '=')) => {
+            Some(c @ ('#' | ';' | '=' | ',')) => {
                 let start = *pos;
                 pos.1 += 1;
                 result.push(Lexeme::new((start, *pos), Token::punct(c.into())));
@@ -239,8 +243,19 @@ pub fn do_group(
                 };
                 result.push(Lexeme::new((start, *pos), Token::punct(punct)));
             }
+            Some('+') => {
+                let mut punct = String::from("+");
+                let start = *pos;
+                pos.1 += 1;
+                if let Some(c @ ('=' | '+')) = file.peek() {
+                    punct.push(*c);
+                    file.next();
+                    pos.1 += 1;
+                }
+                result.push(Lexeme::new((start, *pos), Token::punct(punct)));
+            }
             Some('*') => {
-                let mut punct = String::from("-");
+                let mut punct = String::from("*");
                 let start = *pos;
                 pos.1 += 1;
                 if let Some(c @ '=') = file.peek() {

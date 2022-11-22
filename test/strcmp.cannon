@@ -1,0 +1,11 @@
+#[call(C)]
+fn strcmp(mut lhs: *const u8, mut rhs: *const u8) -> ffi::c::int { // Proposed syntax
+    while *lhs == *rhs {
+        if *lhs == 0 {
+            return 0;
+        }
+        lhs++;
+        rhs++;
+    }
+    *lhs as ffi::c::int - *rhs as ffi::c::int // Proposed syntax
+}
